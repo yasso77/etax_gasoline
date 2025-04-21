@@ -41,7 +41,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'receipts'
+    'receipts',
+    'erp',
 ]
 
 MIDDLEWARE = [
@@ -59,7 +60,7 @@ ROOT_URLCONF = 'etax_project.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],  # or app-level templates
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -72,6 +73,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'etax_project.wsgi.application'
+DATABASE_ROUTERS = ['etax_project.db_routers.ERPDBRouter']
 
 
 # Database
@@ -88,10 +90,10 @@ DATABASES = {
     'default': {
         'ENGINE': 'mssql',
         'NAME': 'EtaxGasolineDB',         # Your main Django DB
-        'USER': 'etax_user',
-        'PASSWORD': 'etax_pass',
-        'HOST': '192.168.1.100',          # Replace with actual host
-        'PORT': '',                       # Leave blank for default 1433
+        'USER': 'saAdmin',
+        'PASSWORD': 'Pa$$w0rd',
+        'HOST': '192.168.0.100\bctest',          # Replace with actual host
+        'PORT': '1433',                       # Leave blank for default 1433
         'OPTIONS': {
             'driver': 'ODBC Driver 17 for SQL Server',
         },
@@ -102,7 +104,7 @@ DATABASES = {
         'USER': 'sa',
         'PASSWORD': 'Pa$$w0rd',
         'HOST': '192.168.0.100\bctest',          # ERP DB server IP
-        'PORT': '',
+        'PORT': '1433',
         'OPTIONS': {
             'driver': 'ODBC Driver 17 for SQL Server',
         },
