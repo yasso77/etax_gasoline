@@ -1,3 +1,4 @@
+import datetime
 from django.shortcuts import render
 from erp.models import ProductPrice
 
@@ -8,7 +9,7 @@ def index(request):
     It fetches today's prices from the ERP database and renders them in the template.
     """
     # Fetch today's prices from ERP
-    today_prices = ProductPrice.objects.using('erp').filter(timestamp__date=datetime.date.today())
+    today_prices = ProductPrice.objects.using('erp')
 
     # Example: You can pass the prices to the template context if needed
     context = {

@@ -89,27 +89,30 @@ DATABASE_ROUTERS = ['etax_project.db_routers.ERPDBRouter']
 DATABASES = {
     'default': {
         'ENGINE': 'mssql',
-        'NAME': 'EtaxGasolineDB',         # Your main Django DB
+        'NAME': 'EtaxGasolineDB',
         'USER': 'saAdmin',
         'PASSWORD': 'Pa$$w0rd',
-        'HOST': '192.168.0.100\bctest',          # Replace with actual host
-        'PORT': '1433',                       # Leave blank for default 1433
+        'HOST': 'NB-YASSER\\SQLEXPRESS',
+        'PORT': '',
         'OPTIONS': {
             'driver': 'ODBC Driver 17 for SQL Server',
+            'extra_params': 'TrustServerCertificate=yes;',
         },
     },
     'erp': {
         'ENGINE': 'mssql',
-        'NAME': 'EmaratTest',            # ERP DB Name
-        'USER': 'sa',
+        'NAME': 'EmaratLive',
+        'USER': 'saAdmin',
         'PASSWORD': 'Pa$$w0rd',
-        'HOST': '192.168.0.100\bctest',          # ERP DB server IP
-        'PORT': '1433',
+        'HOST': 'NB-YASSER\\SQLEXPRESS',
+        'PORT': '',
         'OPTIONS': {
             'driver': 'ODBC Driver 17 for SQL Server',
+            'extra_params': 'TrustServerCertificate=yes;',
         },
     }
 }
+
 
 
 
