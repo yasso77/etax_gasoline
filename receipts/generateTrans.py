@@ -1,0 +1,109 @@
+from datetime import datetime, timedelta
+from receipts.models import HistoricalData, TransactionsDetails  # Adjust import as needed
+
+# step 2: collect data from the historical data table
+# This function collects transactions from the historical data table based on the given parameters. then it inserts them into the TransactionsDetails table.
+# It continues to collect transactions until the target volume is reached or exceeded.
+def collect_and_insert_transactions(target_volume, target_date_str, station_code, product, meterReading, today_price,shift_No):
+    target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+    historical_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+    historical_date_minus_3 = historical_date.replace(year=historical_date.year - 0)
+    collected = []
+    collected_volume = 0
+
+    days_offset = 0
+    checked_dates = set()
+
+    while collected_volume < target_volume:
+        back_date = historical_date_minus_3 + timedelta(days=days_offset)
+
+        if back_date in checked_dates:
+            days_offset = -days_offset if days_offset > 0 else -days_offset + 1
+            continue
+
+        checked_dates.add(back_date)
+
+        rows = HistoricalData.objects.filter(
+            station_code=station_code,
+            product=product,
+            date=back_date,
+            start_date__time__gte=datetime.strptime('07:00:00', '%H:%M:%S').time(),
+            start_date__time__lte=datetime.strptime('15:00:00', '%H:%M:%S').time()
+        ).order_by('start_date')
+
+        for row in rows:
+            collected.append(row)
+            collected_volume += float(row.volume)
+            if collected_volume >= target_volume:
+                break
+
+        if collected_volume >= target_volume:
+            break
+
+        days_offset = -days_offset if days_offset > 0 else -days_offset + 1
+
+    # Bulk insert into TransactionsDetails
+    details_to_insert = [
+        TransactionsDetails(
+            station_code=row.station_code,
+            station_name=row.station_name,
+            start_date=row.start_date,
+            end_date=row.end_date,
+            date=target_date,
+            hour=row.hour,
+            pump_id=row.pump_id,
+            hose_id=row.hose_id,
+            volume=row.volume,
+            ppu=today_price,  # Assuming today_price is defined somewhere in your context
+            money=float(today_price) * float(row.volume),
+            grade_id=row.grade_id,
+            product=row.product,
+            transBatchID=meterReading,  
+            shift=shift_No,  # Assuming shiftNo is defined somewhere in your context
+        )
+        for row in collected
+    ]
+
+    TransactionsDetails.objects.bulk_create(details_to_insert)
+    
+    #return len(details_to_insert), collected_volume
+
+# call third step to fix excess insertions
+    fix_excess_insert(meterReading, target_volume)
+
+
+
+# step 3: fix excess insertions
+# This function checks if the total volume of inserted transactions exceeds the target volume. If it does, it finds the closest transaction to the excess and deletes it.   
+def fix_excess_insert(strBatchID, target_volume):
+    # Step 1: Get all inserted records matching the filter
+    inserted = TransactionsDetails.objects.filter(
+        transBatchID=strBatchID
+        
+    )
+
+    # Step 2: Calculate total inserted volume
+    total_volume = sum([float(t.volume) for t in inserted])
+    excess = total_volume - float(target_volume)
+
+    if excess <= 0:
+        print("No excess to fix.")
+        return
+
+    # Step 3: Find the closest transaction to the excess
+    closest = None
+    closest_diff = None
+
+    for t in inserted:
+        diff = abs(float(t.volume) - excess)
+        if closest is None or diff < closest_diff:
+            closest = t
+            closest_diff = diff
+
+    # Optional: only delete if it's close enough (e.g., within ±2)
+    if closest and abs(float(closest.volume) - excess) <= 2:
+        closest.delete()
+        print(f"Deleted transaction with volume {closest.volume} to fix excess.")
+    else:
+        print("No close enough transaction found to delete.")
+

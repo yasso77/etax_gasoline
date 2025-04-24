@@ -31,29 +31,29 @@
 <body>
     <h1>Today's Product Prices</h1>
 
-    {% if today_prices %}
+    {% if filtered_readings %}
         <table>
             <thead>
                 <tr>
-                    <th>Product ID</th>
-                    <th>Branch ID</th>
-                    <th>Price per Liter</th>
-                    <th>Timestamp</th>
+                    <th>reading_no</th>
+                    <th>date</th>
+                    <th>shift_no</th>
+                    <th>work_date</th>
                 </tr>
             </thead>
             <tbody>
-                {% for price in today_prices %}
+                {% for reading in filtered_readings %}
                     <tr>
-                        <td>{{ price.product_id }}</td>
-                        <td>{{ price.branch_id }}</td>
-                        <td>{{ price.price_per_liter }}</td>
-                        <td>{{ price.timestamp }}</td>
+                        <td>{{ reading.reading_no }}</td>
+                        <td>{{ reading.store_no }}</td>
+                        <td>{{ reading.shift_no }}</td>
+                        <td>{{ reading.work_date }}</td>
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
     {% else %}
-        <p>No prices found for today.</p>
+        <p>No Meter reading found for today.</p>
     {% endif %}
 </body>
 </html>

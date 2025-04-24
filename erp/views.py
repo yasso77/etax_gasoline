@@ -1,19 +1,23 @@
 import datetime
 from django.shortcuts import render
-from erp.models import ProductPrice
+from erp.models import MeterReading
+
+from .getMeterReading import collectInfoMeterReadingShift
 
 # Create your views here.
 def index(request):
-    """
-    This view handles the index page of the ERP app.
-    It fetches today's prices from the ERP database and renders them in the template.
-    """
+   
     # Fetch today's prices from ERP
-    today_prices = ProductPrice.objects.using('erp')
+    filtered_readings = MeterReading.objects.using('erp').filter(store_no='2001', status=2)
+    
+    #calcQty(request)  # Call the calcQty function to perform calculations
 
     # Example: You can pass the prices to the template context if needed
     context = {
-        'today_prices': today_prices,
+        'filtered_readings': filtered_readings,
     }
+    
+    collectInfoMeterReadingShift('2001','G92','2022-09-02','1')
 
     return render(request, 'index.html', context)  
+

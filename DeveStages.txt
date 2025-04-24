@@ -1,0 +1,19 @@
+1- examin store table to get information for each store "Emarat Misr$Store"
+
+3-get total QTY of meterreading "  FROM [EmaratTest].[dbo].[Emarat Misr$Meter Reading] 
+  where [Store No_]=2001 and [Date]='1753-01-01 00:00:00.000'
+  and [Shift No_]=1 and [Reading No_]='201-MR0000025' and Status=2
+  " 
+
+4- "/****** Script for SelectTopNRows command from SSMS  ******/
+SELECT 
+      [Fuel Item Type],
+      [Qty]
+      ,[Price]     
+      ,[Calibration Qty] 
+      ,[CustomerSales]
+  FROM [EmaratTest].[dbo].[Emarat Misr$Meter Reading Lines] where [Reading No_]='201-MR0000025'
+  and [Fuel Item Type]='G92' and [Status]=2"
+
+5- get business receipt
+6- customersale 
