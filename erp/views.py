@@ -17,7 +17,7 @@ def index(request):
         'filtered_readings': filtered_readings,
     }
     
-    collectInfoMeterReadingShift('2001','G92','2022-09-02','1')
+    collectInfoMeterReadingShift('2001','GO','2022-09-02','1')
 
     return render(request, 'index.html', context)  
 

@@ -1,72 +1,94 @@
 from datetime import datetime, timedelta
 from receipts.models import HistoricalData, TransactionsDetails  # Adjust import as needed
 
+from django.db import IntegrityError, DatabaseError
+import traceback
+
 # step 2: collect data from the historical data table
 # This function collects transactions from the historical data table based on the given parameters. then it inserts them into the TransactionsDetails table.
 # It continues to collect transactions until the target volume is reached or exceeded.
-def collect_and_insert_transactions(target_volume, target_date_str, station_code, product, meterReading, today_price,shift_No):
-    target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
-    historical_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
-    historical_date_minus_3 = historical_date.replace(year=historical_date.year - 0)
-    collected = []
-    collected_volume = 0
 
-    days_offset = 0
-    checked_dates = set()
 
-    while collected_volume < target_volume:
-        back_date = historical_date_minus_3 + timedelta(days=days_offset)
+def collect_and_insert_transactions(target_volume, target_date_str, station_code, product, meterReading, today_price, shift_No):
+    try:
+        target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+        historical_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+        historical_date_minus_3 = historical_date.replace(year=historical_date.year - 0)  # looks like you meant -3?
+        
+        collected = []
+        collected_volume = 0
+        days_offset = 0
+        checked_dates = set()
 
-        if back_date in checked_dates:
-            days_offset = -days_offset if days_offset > 0 else -days_offset + 1
-            continue
+        while collected_volume < target_volume:
+            try:
+                back_date = historical_date_minus_3 + timedelta(days=days_offset)
 
-        checked_dates.add(back_date)
+                if back_date in checked_dates:
+                    days_offset = -days_offset if days_offset > 0 else -days_offset + 1
+                    continue
 
-        rows = HistoricalData.objects.filter(
-            station_code=station_code,
-            product=product,
-            date=back_date,
-            start_date__time__gte=datetime.strptime('07:00:00', '%H:%M:%S').time(),
-            start_date__time__lte=datetime.strptime('15:00:00', '%H:%M:%S').time()
-        ).order_by('start_date')
+                checked_dates.add(back_date)
 
-        for row in rows:
-            collected.append(row)
-            collected_volume += float(row.volume)
-            if collected_volume >= target_volume:
-                break
+                rows = HistoricalData.objects.filter(
+                    station_code=station_code,
+                    product=product,
+                    date=back_date,
+                    start_date__time__gte=datetime.strptime('07:00:00', '%H:%M:%S').time(),
+                    start_date__time__lte=datetime.strptime('15:00:00', '%H:%M:%S').time()
+                ).order_by('start_date')
 
-        if collected_volume >= target_volume:
-            break
+                print(f"Rows found for date {back_date}: {len(rows)}")
 
-        days_offset = -days_offset if days_offset > 0 else -days_offset + 1
+                for row in rows:
+                    collected.append(row)
+                    collected_volume += float(row.volume)
+                    if collected_volume >= target_volume:
+                        break
 
-    # Bulk insert into TransactionsDetails
-    details_to_insert = [
-        TransactionsDetails(
-            station_code=row.station_code,
-            station_name=row.station_name,
-            start_date=row.start_date,
-            end_date=row.end_date,
-            date=target_date,
-            hour=row.hour,
-            pump_id=row.pump_id,
-            hose_id=row.hose_id,
-            volume=row.volume,
-            ppu=today_price,  # Assuming today_price is defined somewhere in your context
-            money=float(today_price) * float(row.volume),
-            grade_id=row.grade_id,
-            product=row.product,
-            transBatchID=meterReading,  
-            shift=shift_No,  # Assuming shiftNo is defined somewhere in your context
-        )
-        for row in collected
-    ]
+                if collected_volume >= target_volume:
+                    break
 
-    TransactionsDetails.objects.bulk_create(details_to_insert)
-    
-    #return len(details_to_insert), collected_volume
+                days_offset = -days_offset if days_offset > 0 else -days_offset + 1
+
+            except Exception as e:
+                print(f"Error fetching rows for date {back_date}: {e}")
+                traceback.print_exc()
+
+        # Insert into TransactionsDetails
+        try:
+            details_to_insert = [
+                TransactionsDetails(
+                    station_code=row.station_code,
+                    station_name=row.station_name,
+                    start_date=row.start_date,
+                    end_date=row.end_date,
+                    date=target_date,
+                    hour=row.hour,
+                    pump_id=row.pump_id,
+                    hose_id=row.hose_id,
+                    volume=row.volume,
+                    ppu=today_price,
+                    money=float(today_price) * float(row.volume),
+                    grade_id=row.grade_id,
+                    product=row.product,
+                    transBatchID=meterReading,
+                    shift=shift_No,
+                )
+                for row in collected
+            ]
+
+            TransactionsDetails.objects.bulk_create(details_to_insert)
+            print(f"Inserted: {len(details_to_insert)}, Collected Volume: {collected_volume}")
+
+        except (IntegrityError, DatabaseError) as db_err:
+            print(f"Database error during insert: {db_err}")
+            traceback.print_exc()
+
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        traceback.print_exc()
+
 
 # call third step to fix excess insertions
     fix_excess_insert(meterReading, target_volume)
@@ -105,5 +127,5 @@ def fix_excess_insert(strBatchID, target_volume):
         closest.delete()
         print(f"Deleted transaction with volume {closest.volume} to fix excess.")
     else:
-        print("No close enough transaction found to delete.")
+        print(f"No close enough transaction {closest.volume}  found to delete.")
 
