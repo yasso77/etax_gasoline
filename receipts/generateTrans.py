@@ -1,6 +1,7 @@
+from receipts.models import Store  
 from datetime import datetime, timedelta
 from receipts.models import HistoricalData, TransactionsDetails  # Adjust import as needed
-
+from django.db import transaction
 from django.db import IntegrityError, DatabaseError
 import traceback
 
@@ -56,30 +57,61 @@ def collect_and_insert_transactions(target_volume, target_date_str, station_code
                 traceback.print_exc()
 
         # Insert into TransactionsDetails
+        
         try:
-            details_to_insert = [
-                TransactionsDetails(
-                    station_code=row.station_code,
-                    station_name=row.station_name,
-                    start_date=row.start_date,
-                    end_date=row.end_date,
-                    date=target_date,
-                    hour=row.hour,
-                    pump_id=row.pump_id,
-                    hose_id=row.hose_id,
-                    volume=row.volume,
-                    ppu=today_price,
-                    money=float(today_price) * float(row.volume),
-                    grade_id=row.grade_id,
-                    product=row.product,
-                    transBatchID=meterReading,
-                    shift=shift_No,
-                )
-                for row in collected
-            ]
+            with transaction.atomic():
+                # This block of code is responsible for inserting transaction details into the
+                # `TransactionsDetails` table in bulk. Here's a breakdown of what each step is doing:
+                # 1. Get the store where store_id = '2001'
+                store = Store.objects.get(store_id=station_code)
+                latest_receipt_number = store.latest_used_Receipt 
 
-            TransactionsDetails.objects.bulk_create(details_to_insert)
-            print(f"Inserted: {len(details_to_insert)}, Collected Volume: {collected_volume}")
+                # 2. Extract latest receipt number
+                try:
+                    prefix, number_part = latest_receipt_number.split('F')
+                    prefix = prefix + 'F'  # Reattach 'F' to prefix
+                    current_receipt_num = int(number_part)
+                except (ValueError, IndexError):
+                    prefix = '000201-F'
+                    current_receipt_num = 1
+
+                # 3. Prepare the details to insert
+                details_to_insert = []
+                for index, row in enumerate(collected):
+                    new_receipt_num = current_receipt_num + index + 1
+                    receipt_no = f"{prefix}{str(new_receipt_num).zfill(10)}"  # prefix dynamic
+
+
+                    detail = TransactionsDetails(
+                        station_code=row.station_code,
+                        station_name=row.station_name,
+                        start_date=row.start_date,
+                        end_date=row.end_date,
+                        date=target_date,
+                        hour=row.hour,
+                        pump_id=row.pump_id,
+                        hose_id=row.hose_id,
+                        volume=row.volume,
+                        ppu=today_price,
+                        money=float(today_price) * float(row.volume),
+                        grade_id=row.grade_id,
+                        product=row.product,
+                        meterreading_no=meterReading,
+                        shift=shift_No,
+                        receiptNo=receipt_no
+                    )
+                    details_to_insert.append(detail)
+
+                # 4. Bulk insert all at once
+                TransactionsDetails.objects.bulk_create(details_to_insert)
+
+                # 5. Update the store with the latest receipt number used
+                latest_generated_receipt = f"000201-P{str(current_receipt_num + len(collected)).zfill(10)}"
+                store.latest_used_Receipt = latest_generated_receipt
+                store.save()
+                    
+
+           
 
         except (IntegrityError, DatabaseError) as db_err:
             print(f"Database error during insert: {db_err}")
@@ -97,10 +129,10 @@ def collect_and_insert_transactions(target_volume, target_date_str, station_code
 
 # step 3: fix excess insertions
 # This function checks if the total volume of inserted transactions exceeds the target volume. If it does, it finds the closest transaction to the excess and deletes it.   
-def fix_excess_insert(strBatchID, target_volume):
+def fix_excess_insert(meterreadingNo, target_volume):
     # Step 1: Get all inserted records matching the filter
     inserted = TransactionsDetails.objects.filter(
-        transBatchID=strBatchID
+        meterreading_no=meterreadingNo
         
     )
 

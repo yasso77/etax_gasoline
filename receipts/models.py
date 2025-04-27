@@ -14,29 +14,42 @@ class Receipt(models.Model):
     def __str__(self):
         return f"Receipt {self.receipt_number} - {self.branch}"
     
-    class Store(models.Model):
-        """
-        Model to represent a store.
-        """
-        store_id = models.CharField(max_length=20, unique=True)
-        store_name = models.CharField(max_length=100)
-        historical_storecode=models.CharField(max_length=20, blank=True, null=True)
+class Store(models.Model):
+    """
+    Model to represent a store.
+    """
+    store_id = models.CharField(max_length=20, unique=True)
+    store_name = models.CharField(max_length=100)
+    latest_used_Receipt=models.CharField(max_length=100, blank=True, null=True,default='000201-P00000000001')
+    shiftNumb=models.IntegerField(default=3, blank=True, null=True)
+    first_shift_start=models.TimeField(blank=True, null=True)
+    first_shift_end=models.TimeField(blank=True, null=True)
+    second_shift_start=models.TimeField(blank=True, null=True)
+    second_shift_end=models.TimeField(blank=True, null=True)
+    third_shift_start=models.TimeField(blank=True, null=True)
+    third_shift_end=models.TimeField(blank=True, null=True)
+    go=models.BooleanField(default=False, blank=True, null=True)
+    g80=models.BooleanField(default=False, blank=True, null=True)
+    g92=models.BooleanField(default=True, blank=True, null=True)  
+    g95=models.BooleanField(default=True, blank=True, null=True)
+    
+    
+        
+    def __str__(self):
+            return self.store_name
             
-        def __str__(self):
-                return self.store_name
-            
-    class GasolineProducts(models.Model):
-        """
-        Model to represent a store.
-        """
-        product_code = models.CharField(max_length=20, unique=True)
-        product_name = models.CharField(max_length=100)
-        historical_productcode=models.CharField(max_length=20, blank=True, null=True)
-            
-        def __str__(self):
-                return self.product_code
+class GasolineProducts(models.Model):
+    """
+    Model to represent a store.
+    """
+    product_code = models.CharField(max_length=20, unique=True)
+    product_name = models.CharField(max_length=100)
+    historical_productcode=models.CharField(max_length=20, blank=True, null=True)
+        
+    def __str__(self):
+            return self.product_code
 
-  
+
 
 class HistoricalData(models.Model):
     id = models.AutoField(primary_key=True)
@@ -63,6 +76,7 @@ class HistoricalData(models.Model):
 
 class TransactionsDetails(models.Model):
     id = models.AutoField(primary_key=True)  # Assuming it's the table's primary key
+    receiptNo = models.CharField(max_length=50,default='000201-P00000000001') #template 0000501-P0000553988
     station_code = models.CharField(max_length=50)
     station_name = models.CharField(max_length=100)
     start_date = models.DateTimeField()
@@ -76,7 +90,7 @@ class TransactionsDetails(models.Model):
     money = models.DecimalField(max_digits=12, decimal_places=2)
     grade_id = models.IntegerField()
     product = models.CharField(max_length=50)
-    transBatchID = models.CharField(max_length=50,default='01-2009-2022-09-02')
+    meterreading_no = models.CharField(max_length=50,default='01-2009-2022-09-02')
     shift = models.IntegerField(default=1)
 
     class Meta:

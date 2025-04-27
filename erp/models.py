@@ -24,7 +24,7 @@ class MeterReadingLine(models.Model):
 
     reading_no = models.CharField(max_length=50, db_column='Reading No_')
     store_no = models.CharField(max_length=50, db_column='Store No_')
-    fuel_item_type = models.CharField(max_length=255)  # assuming it's a string
+    fuel_item_type = models.CharField(max_length=255,db_column='fuel_item_type')  # assuming it's a string
     qty = models.DecimalField(max_digits=10, decimal_places=2)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     calibration_qty = models.DecimalField(max_digits=10, decimal_places=2)
