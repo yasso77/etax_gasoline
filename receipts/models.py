@@ -21,7 +21,7 @@ class Store(models.Model):
     store_id = models.CharField(max_length=20, unique=True)
     store_name = models.CharField(max_length=100)
     latest_used_Receipt=models.CharField(max_length=100, blank=True, null=True,default='000201-P00000000001')
-    shiftNumb=models.IntegerField(default=3, blank=True, null=True)
+    shiftcount=models.IntegerField(default=3, blank=True, null=True)
     first_shift_start=models.TimeField(blank=True, null=True)
     first_shift_end=models.TimeField(blank=True, null=True)
     second_shift_start=models.TimeField(blank=True, null=True)

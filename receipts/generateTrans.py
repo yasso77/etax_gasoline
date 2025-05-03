@@ -10,12 +10,18 @@ import traceback
 # It continues to collect transactions until the target volume is reached or exceeded.
 
 
-def collect_and_insert_transactions(target_volume, target_date_str, station_code, product, meterReading, today_price, shift_No):
+def collect_and_insert_transactions(target_volume, target_date_str, station_code, product, meterReading, today_price, shift_No, lastReceiptNumber, shiftCount):
     try:
-        target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
-        historical_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+        #target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+        #historical_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+        neededDates=get_shift_datetime_range(target_date_str, shift_No, shiftCount)
+        target_date = neededDates[0].date()
+        historical_date = neededDates[1].date()
+        #set target date from above def
         historical_date_minus_3 = historical_date.replace(year=historical_date.year - 0)  # looks like you meant -3?
-        
+        shiftTimes= getShiftTimeForStationsBy(shift_No, shiftCount)
+        start_time = datetime.strptime(shiftTimes[0], '%H:%M:%S').time()
+        end_time = datetime.strptime(shiftTimes[1], '%H:%M:%S').time()
         collected = []
         collected_volume = 0
         days_offset = 0
@@ -35,8 +41,8 @@ def collect_and_insert_transactions(target_volume, target_date_str, station_code
                     station_code=station_code,
                     product=product,
                     date=back_date,
-                    start_date__time__gte=datetime.strptime('07:00:00', '%H:%M:%S').time(),
-                    start_date__time__lte=datetime.strptime('15:00:00', '%H:%M:%S').time()
+                    start_date__time__gte=start_time,
+                    end_date__time__lte=end_time
                 ).order_by('start_date')
 
                 print(f"Rows found for date {back_date}: {len(rows)}")
@@ -59,21 +65,13 @@ def collect_and_insert_transactions(target_volume, target_date_str, station_code
         # Insert into TransactionsDetails
         
         try:
+            
+           
             with transaction.atomic():
-                # This block of code is responsible for inserting transaction details into the
-                # `TransactionsDetails` table in bulk. Here's a breakdown of what each step is doing:
-                # 1. Get the store where store_id = '2001'
-                store = Store.objects.get(store_id=station_code)
-                latest_receipt_number = store.latest_used_Receipt 
+               
 
                 # 2. Extract latest receipt number
-                try:
-                    prefix, number_part = latest_receipt_number.split('F')
-                    prefix = prefix + 'F'  # Reattach 'F' to prefix
-                    current_receipt_num = int(number_part)
-                except (ValueError, IndexError):
-                    prefix = '000201-F'
-                    current_receipt_num = 1
+                prefix, current_receipt_num = split_receipt(lastReceiptNumber)
 
                 # 3. Prepare the details to insert
                 details_to_insert = []
@@ -106,7 +104,7 @@ def collect_and_insert_transactions(target_volume, target_date_str, station_code
                 TransactionsDetails.objects.bulk_create(details_to_insert)
 
                 # 5. Update the store with the latest receipt number used
-                latest_generated_receipt = f"000201-P{str(current_receipt_num + len(collected)).zfill(10)}"
+                latest_generated_receipt = f"000201-F{str(current_receipt_num + len(collected)).zfill(10)}"
                 store.latest_used_Receipt = latest_generated_receipt
                 store.save()
                     
@@ -160,4 +158,72 @@ def fix_excess_insert(meterreadingNo, target_volume):
         print(f"Deleted transaction with volume {closest.volume} to fix excess.")
     else:
         print(f"No close enough transaction {closest.volume}  found to delete.")
+        
+        
+def split_receipt(latest_receipt_number):
+    """
+    Splits a receipt number into prefix and numeric part.
+    Supports formats like '000201-F0000000123' or '000201-P0000000456'.
+    
+    Returns:
+        (prefix, number_part) -> (str, int)
+    """
+    try:
+        if 'F' in latest_receipt_number:
+            parts = latest_receipt_number.split('F')
+            prefix = parts[0] + 'F'
+            number_part = int(parts[1])
+        elif 'P' in latest_receipt_number:
+            parts = latest_receipt_number.split('P')
+            prefix = parts[0] + 'P'
+            number_part = int(parts[1])
+        else:
+            # fallback: unknown format
+            prefix = '000201-F'
+            number_part = 0
+    except (ValueError, IndexError):
+        prefix = '000201-F'
+        number_part = 0
 
+    return prefix, number_part
+
+def getShiftTimeForStationsBy(shiftNo,shiftCount):
+    """
+    Returns the start and end time for a given shift number.
+    """
+    if shiftCount == 3:
+        if shiftNo == 1:
+            return "23:00:00", "07:00:00"
+        elif shiftNo == 2:
+            return "07:00:00", "15:00:00"
+        elif shiftNo == 3:
+            return "15:00:00", "23:00:00"
+        else:
+            raise ValueError("Invalid shift number")
+    elif shiftCount == 2:
+        if shiftNo == 2:
+             return "08:00:00", "20:00:00"
+        elif shiftNo == 1:
+            return "20:00:00", "08:00:00"
+        else:
+            raise ValueError("Invalid shift number")
+
+from datetime import datetime, timedelta
+
+def get_shift_datetime_range(target_date_str, shift_no, shift_count):
+    historical_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+    shift_times = getShiftTimeForStationsBy(shift_no, shift_count)
+
+    start_time = datetime.strptime(shift_times[0], '%H:%M:%S').time()
+    end_time = datetime.strptime(shift_times[1], '%H:%M:%S').time()
+
+    # Combine date and time into datetime
+    start_datetime = datetime.combine(historical_date, start_time)
+
+    # If end time is less than start time, it's on the next day
+    if end_time <= start_time:
+        end_datetime = datetime.combine(historical_date + timedelta(days=1), end_time)
+    else:
+        end_datetime = datetime.combine(historical_date, end_time)
+
+    return start_datetime, end_datetime

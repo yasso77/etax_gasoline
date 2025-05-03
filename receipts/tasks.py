@@ -1,14 +1,17 @@
+# tasks.py
 from celery import shared_task
-from django.utils import timezone
-from .models import Receipt
-from .utils import generate_receipts_for_shift
+
+from receipts.models import Store
 
 @shared_task
-def generate_shift_receipts():
-    """
-    Background task to generate receipts for current shifts per branch.
-    """
-    current_time = timezone.now()
-    # Add logic to loop through each branch and fetch the current shift
-    # For each, call a utility function to generate receipts based on past data
-    generate_receipts_for_shift(current_time)
+def run_my_view_task():
+    try:
+        from erp.views import runMeterReading  # Import here to avoid circular import issues
+        store = Store.objects.get(store_id=2001)
+        passwing_work_date ='2022-09-07' #datetime.date.today()  
+        response = runMeterReading(passwing_work_date, store.store_id, store.latest_used_Receipt, store.shiftcount) 
+        #print("=== TASK STARTED: DATE IS ", passwing_work_date, "===")
+        return response
+    except Exception as e:
+        print(f"Error in running index view: {e}")
+        return str(e)

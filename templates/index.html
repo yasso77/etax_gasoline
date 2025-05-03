@@ -31,7 +31,7 @@
 <body>
     <h1>Today's Product Prices</h1>
 
-    {% if filtered_readings %}
+    {% comment %} {% if filtered_readings %}
         <table>
             <thead>
                 <tr>
@@ -54,6 +54,6 @@
         </table>
     {% else %}
         <p>No Meter reading found for today.</p>
-    {% endif %}
+    {% endif %} {% endcomment %}
 </body>
 </html>
