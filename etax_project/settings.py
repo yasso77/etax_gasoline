@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+from celery.schedules import crontab
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -43,7 +44,12 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'receipts',
     'erp',
+   
+
 ]
+INSTALLED_APPS += ['django_celery_beat']
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers.DatabaseScheduler'
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -90,9 +96,11 @@ DATABASES = {
     'default': {
         'ENGINE': 'mssql',
         'NAME': 'EtaxGasolineDB',
-        'USER': 'saAdmin',
+        #'USER': 'saAdmin',
+        'USER': 'sa',
         'PASSWORD': 'Pa$$w0rd',
-        'HOST': 'NB-YASSER\\SQLEXPRESS',
+        #'HOST': 'NB-YASSER\\SQLEXPRESS',
+        'HOST': '192.168.0.100\\bctest',
         'PORT': '',
         'OPTIONS': {
             'driver': 'ODBC Driver 17 for SQL Server',
@@ -101,10 +109,13 @@ DATABASES = {
     },
     'erp': {
         'ENGINE': 'mssql',
-        'NAME': 'EmaratLive',
-        'USER': 'saAdmin',
+        #'NAME': 'EmaratLive',
+        'NAME': 'EmaratTest',
+        #'USER': 'saAdmin',
+        'USER': 'sa',
         'PASSWORD': 'Pa$$w0rd',
-        'HOST': 'NB-YASSER\\SQLEXPRESS',
+        'HOST': '192.168.0.100\\bctest',
+        #'HOST': 'NB-YASSER\\SQLEXPRESS',
         'PORT': '',
         'OPTIONS': {
             'driver': 'ODBC Driver 17 for SQL Server',
@@ -157,3 +168,13 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+CELERY_BEAT_SCHEDULE = {
+    'run-index-view-every-minute': {
+        'task': 'receipts.tasks.run_my_view_task',
+        'schedule': crontab(minute='*/3'),  
+    },
+}
+CELERY_BEAT_SCHEDULER = 'celery.beat:PersistentScheduler'  # NOT django_celery_beat
+

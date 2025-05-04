@@ -20,4 +20,5 @@ from django.urls import include, path
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('erp.urls')),  # This includes URLs from your ERP app
+    path('', include('receipts.urls')), 
 ]
