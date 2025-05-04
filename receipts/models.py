@@ -1,3 +1,4 @@
+import datetime
 from django.db import models
 
 # Create your models here.
@@ -22,16 +23,9 @@ class Store(models.Model):
     store_name = models.CharField(max_length=100)
     latest_used_Receipt=models.CharField(max_length=100, blank=True, null=True,default='000201-P00000000001')
     shiftcount=models.IntegerField(default=3, blank=True, null=True)
-    first_shift_start=models.TimeField(blank=True, null=True)
-    first_shift_end=models.TimeField(blank=True, null=True)
-    second_shift_start=models.TimeField(blank=True, null=True)
-    second_shift_end=models.TimeField(blank=True, null=True)
-    third_shift_start=models.TimeField(blank=True, null=True)
-    third_shift_end=models.TimeField(blank=True, null=True)
-    go=models.BooleanField(default=False, blank=True, null=True)
-    g80=models.BooleanField(default=False, blank=True, null=True)
-    g92=models.BooleanField(default=True, blank=True, null=True)  
-    g95=models.BooleanField(default=True, blank=True, null=True)
+    store_address = models.TextField(max_length=20, blank=True, null=True)
+    created_date = models.DateTimeField(default=datetime.datetime.now)
+    rin = models.CharField(max_length=20, blank=True, null=True)
     
     
         
@@ -78,20 +72,22 @@ class TransactionsDetails(models.Model):
     id = models.AutoField(primary_key=True)  # Assuming it's the table's primary key
     receiptNo = models.CharField(max_length=50,default='000201-P00000000001') #template 0000501-P0000553988
     station_code = models.CharField(max_length=50)
-    station_name = models.CharField(max_length=100)
+    station_name = models.CharField(max_length=100,null=True, blank=True)
     start_date = models.DateTimeField()
     end_date = models.DateTimeField()
     date = models.DateField()
-    hour = models.IntegerField()
-    pump_id = models.IntegerField()
-    hose_id = models.IntegerField()
+    hour = models.IntegerField(null=True, blank=True)
+    pump_id = models.IntegerField(null=True, blank=True)
+    hose_id = models.IntegerField(null=True, blank=True)
     volume = models.DecimalField(max_digits=10, decimal_places=2)
-    ppu = models.DecimalField(max_digits=10, decimal_places=3)  # Price per unit
-    money = models.DecimalField(max_digits=12, decimal_places=2)
-    grade_id = models.IntegerField()
+    ppu = models.DecimalField(max_digits=10, decimal_places=3,null=True, blank=True)  # Price per unit
+    money = models.DecimalField(max_digits=12, decimal_places=2,null=True, blank=True)
+    grade_id = models.IntegerField(null=True, blank=True)
     product = models.CharField(max_length=50)
     meterreading_no = models.CharField(max_length=50,default='01-2009-2022-09-02')
-    shift = models.IntegerField(default=1)
+    shift = models.IntegerField(default=1,null=True, blank=True)
+    is_adjustment=models.BooleanField(default=False)  # Assuming this is a boolean field
+    created_at = models.DateTimeField(default=datetime.datetime.now)  # Automatically set the field to now when the object is first created
 
     class Meta:
         db_table = 'receipts_TransactionsDetails'

@@ -1,9 +1,9 @@
 import pyodbc
 
 # Replace with your actual info
-server = 'NB-YASSER\SQLEXPRESS'          # or 'localhost', or 'SERVERNAME\\SQLEXPRESS'
-database = 'EmaratLive'     # your DB name
-username = 'saAdmin'        # SQL username
+server = '192.168.0.100\\bctest'      # or 'localhost', or 'SERVERNAME\\SQLEXPRESS'
+database = 'EmaratTest'     # your DB name
+username = 'sa'        # SQL username
 password = 'Pa$$w0rd'    # SQL password
 driver = 'ODBC Driver 17 for SQL Server'  # or use what `pyodbc.drivers()` shows
 

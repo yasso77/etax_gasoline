@@ -1,16 +1,29 @@
 import datetime
 from django.shortcuts import render
 from erp.models import MeterReading, MeterReadingLine
-from receipts.models import TransactionLog, TransactionsDetails
+from receipts.models import Store, TransactionLog, TransactionsDetails
 from django.db.models import Sum
 
 from .getMeterReading import collectInfoMeterReadingShift
 
 # Create your views here.
 def index(request):
-    runMeterReading()
+    #runMeterReading()
+        try:
+            store = Store.objects.get(store_id=2001)
+            passwing_work_date ='2022-09-02' #datetime.date.today()  
+            runMeterReading(passwing_work_date, store.store_id, store.latest_used_Receipt, store.shiftcount) 
+        except Store.DoesNotExist:
+            store = None  # or return an error response or default store
+            #send email to admin or log the error
+        except Exception as e:
+            # Handle other exceptions
+            print(f"Error in running index view: {e}")
+            #send email to admin or log the error
+            
+        
 
-    return render(request, 'index.html', {'message': 'Hello, World!'})  
+        return render(request, 'index.html', {'message': 'Hello, World!'})  
 
 
 

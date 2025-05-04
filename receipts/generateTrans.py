@@ -1,5 +1,7 @@
+from decimal import Decimal
 from receipts.models import Store  
 from datetime import datetime, timedelta
+from django.utils import timezone
 from receipts.models import HistoricalData, TransactionsDetails  # Adjust import as needed
 from django.db import transaction
 from django.db import IntegrityError, DatabaseError
@@ -11,41 +13,37 @@ import traceback
 
 
 def collect_and_insert_transactions(target_volume, target_date_str, station_code, product, meterReading, today_price, shift_No, lastReceiptNumber, shiftCount):
-    try:
-        #target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
-        #historical_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
-        neededDates=get_shift_datetime_range(target_date_str, shift_No, shiftCount)
-        target_date = neededDates[0].date()
-        historical_date = neededDates[1].date()
-        #set target date from above def
-        historical_date_minus_3 = historical_date.replace(year=historical_date.year - 0)  # looks like you meant -3?
-        shiftTimes= getShiftTimeForStationsBy(shift_No, shiftCount)
-        start_time = datetime.strptime(shiftTimes[0], '%H:%M:%S').time()
-        end_time = datetime.strptime(shiftTimes[1], '%H:%M:%S').time()
-        collected = []
-        collected_volume = 0
-        days_offset = 0
-        checked_dates = set()
+   
+        try:
+            neededDates = get_shift_datetime_range(target_date_str, shift_No, shiftCount)
+            start_date = neededDates[0].date()
+            end_date = neededDates[1].date()
 
-        while collected_volume < target_volume:
-            try:
-                back_date = historical_date_minus_3 + timedelta(days=days_offset)
+            shiftTimes = getShiftTimeForStationsBy(shift_No, shiftCount)
+            start_time = datetime.strptime(shiftTimes[0], '%H:%M:%S').time()
+            end_time = datetime.strptime(shiftTimes[1], '%H:%M:%S').time()
 
-                if back_date in checked_dates:
-                    days_offset = -days_offset if days_offset > 0 else -days_offset + 1
-                    continue
+            collected = []
+            collected_volume = 0.0
+            offset = 0
+            max_lookback = 10  # Safety limit: don't look back forever
 
-                checked_dates.add(back_date)
+            while collected_volume < target_volume and abs(offset) <= max_lookback:
+                # Expand the search window
+                date_range_start = start_date - timedelta(days=offset)
+                date_range_end = end_date + timedelta(days=offset)
 
                 rows = HistoricalData.objects.filter(
                     station_code=station_code,
                     product=product,
-                    date=back_date,
-                    start_date__time__gte=start_time,
-                    end_date__time__lte=end_time
+                    date__range=(date_range_start, date_range_end),
+                    #start_date__time__gte=start_time,
+                    #end_date__time__lte=end_time
                 ).order_by('start_date')
+                
+                
 
-                print(f"Rows found for date {back_date}: {len(rows)}")
+                #print(f"Rows found between {date_range_start} and {date_range_end}: {len(rows)}")
 
                 for row in rows:
                     collected.append(row)
@@ -56,11 +54,14 @@ def collect_and_insert_transactions(target_volume, target_date_str, station_code
                 if collected_volume >= target_volume:
                     break
 
-                days_offset = -days_offset if days_offset > 0 else -days_offset + 1
+                # Increment offset to widen the range both backward and forward
+                offset += 1
 
-            except Exception as e:
-                print(f"Error fetching rows for date {back_date}: {e}")
-                traceback.print_exc()
+        except Exception as e:
+            #print(f"Error during data collection: {e}")
+            import traceback
+            traceback.print_exc()
+
 
         # Insert into TransactionsDetails
         
@@ -85,7 +86,7 @@ def collect_and_insert_transactions(target_volume, target_date_str, station_code
                         station_name=row.station_name,
                         start_date=row.start_date,
                         end_date=row.end_date,
-                        date=target_date,
+                        date=start_date,
                         hour=row.hour,
                         pump_id=row.pump_id,
                         hose_id=row.hose_id,
@@ -105,69 +106,62 @@ def collect_and_insert_transactions(target_volume, target_date_str, station_code
 
                 # 5. Update the store with the latest receipt number used
                 latest_generated_receipt = f"000201-F{str(current_receipt_num + len(collected)).zfill(10)}"
-                store.latest_used_Receipt = latest_generated_receipt
-                store.save()
+                updateStoreByLastReceiptNumber(station_code, latest_generated_receipt)
                     
 
            
 
         except (IntegrityError, DatabaseError) as db_err:
-            print(f"Database error during insert: {db_err}")
+            #print(f"Database error during insert: {db_err}")
             traceback.print_exc()
 
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        traceback.print_exc()
+        except Exception as e:
+            #print(f"Unexpected error: {e}")
+            traceback.print_exc()
 
 
-# call third step to fix excess insertions
-    fix_excess_insert(meterReading, target_volume)
+    # call third step to fix excess insertions
+        fix_excess_insert(meterReading, target_volume,start_date,end_date,product)
 
 
 
 # step 3: fix excess insertions
 # This function checks if the total volume of inserted transactions exceeds the target volume. If it does, it finds the closest transaction to the excess and deletes it.   
-def fix_excess_insert(meterreadingNo, target_volume):
-    # Step 1: Get all inserted records matching the filter
-    inserted = TransactionsDetails.objects.filter(
-        meterreading_no=meterreadingNo
-        
-    )
+
+
+def fix_excess_insert(meterreadingNo, target_volume,start_date,end_date,strProd):
+    # Step 1: Get all existing transactions
+    inserted = TransactionsDetails.objects.filter(meterreading_no=meterreadingNo,product=strProd)
 
     # Step 2: Calculate total inserted volume
-    total_volume = sum([float(t.volume) for t in inserted])
-    excess = total_volume - float(target_volume)
+    total_volume = sum(Decimal(t.volume) for t in inserted)
+    difference = total_volume - Decimal(target_volume)
 
-    if excess <= 0:
-        print("No excess to fix.")
+    if abs(difference) < Decimal("0.01"):
+        #print("No significant difference to fix.")
         return
 
-    # Step 3: Find the closest transaction to the excess
-    closest = None
-    closest_diff = None
+    # Step 3: Insert a compensating transaction (negative or positive)
+    TransactionsDetails.objects.create(
+        meterreading_no=meterreadingNo,
+        volume=-difference,  # Negative if excess, positive if shortage
+        start_date=start_date,
+        end_date=end_date,
+        product=strProd,  # Assuming all products are the same
+        station_code=inserted[0].station_code,
+        ppu=inserted[0].ppu,  # Assuming all prices are the same
+        money=difference*inserted[0].ppu,  # Set to 0 for the adjustment transaction
+        date=start_date,
+        created_at=timezone.now(),  # or your model’s default datetime field
+        is_adjustment=True  # Add this field in your model if needed
+    )
 
-    for t in inserted:
-        diff = abs(float(t.volume) - excess)
-        if closest is None or diff < closest_diff:
-            closest = t
-            closest_diff = diff
+    #print(f"Inserted adjustment transaction with volume {-difference} to fix difference.")
 
-    # Optional: only delete if it's close enough (e.g., within ±2)
-    if closest and abs(float(closest.volume) - excess) <= 2:
-        closest.delete()
-        print(f"Deleted transaction with volume {closest.volume} to fix excess.")
-    else:
-        print(f"No close enough transaction {closest.volume}  found to delete.")
         
         
 def split_receipt(latest_receipt_number):
-    """
-    Splits a receipt number into prefix and numeric part.
-    Supports formats like '000201-F0000000123' or '000201-P0000000456'.
     
-    Returns:
-        (prefix, number_part) -> (str, int)
-    """
     try:
         if 'F' in latest_receipt_number:
             parts = latest_receipt_number.split('F')
@@ -208,7 +202,7 @@ def getShiftTimeForStationsBy(shiftNo,shiftCount):
         else:
             raise ValueError("Invalid shift number")
 
-from datetime import datetime, timedelta
+
 
 def get_shift_datetime_range(target_date_str, shift_no, shift_count):
     historical_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
@@ -227,3 +221,17 @@ def get_shift_datetime_range(target_date_str, shift_no, shift_count):
         end_datetime = datetime.combine(historical_date, end_time)
 
     return start_datetime, end_datetime
+
+def updateStoreByLastReceiptNumber(storeID, lastReceiptNumber):
+    """
+    Updates the store's latest used receipt number.
+    """
+    try:
+        store = Store.objects.get(store_id=storeID)
+        store.latest_used_Receipt = lastReceiptNumber
+        store.save()
+        #print(f"Store {storeID} updated with latest receipt number {lastReceiptNumber}.")
+    except Store.DoesNotExist:
+        print(f"Store {storeID} does not exist.")
+    except Exception as e:
+        print(f"Error updating store {storeID}: {e}")
