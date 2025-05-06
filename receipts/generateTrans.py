@@ -6,6 +6,7 @@ from receipts.models import HistoricalData, TransactionsDetails  # Adjust import
 from django.db import transaction
 from django.db import IntegrityError, DatabaseError
 import traceback
+from django.db.models import Q
 
 # step 2: collect data from the historical data table
 # This function collects transactions from the historical data table based on the given parameters. then it inserts them into the TransactionsDetails table.
@@ -15,14 +16,18 @@ import traceback
 def collect_and_insert_transactions(target_volume, target_date_str, station_code, product, meterReading, today_price, shift_No, lastReceiptNumber, shiftCount):
    
         try:
-            neededDates = get_shift_datetime_range(target_date_str, shift_No, shiftCount)
-            start_date = neededDates[0].date()
-            end_date = neededDates[1].date()
+            start_dt, end_dt = get_shift_datetime_range(target_date_str, shift_No, shiftCount)
 
-            shiftTimes = getShiftTimeForStationsBy(shift_No, shiftCount)
-            start_time = datetime.strptime(shiftTimes[0], '%H:%M:%S').time()
-            end_time = datetime.strptime(shiftTimes[1], '%H:%M:%S').time()
+            # Extract time portion from start_dt and end_dt
+            start_time = start_dt.time()
+            end_time = end_dt.time()
 
+            if start_time <= end_time:
+                # Same-day shift
+                time_filter = Q(start_date__time__gte=start_time, start_date__time__lte=end_time)
+            else:
+                # Overnight shift (e.g., 23:00 to 07:00)
+                time_filter = Q(start_date__time__gte=start_time) | Q(start_date__time__lte=end_time)
             collected = []
             collected_volume = 0.0
             offset = 0
@@ -30,17 +35,16 @@ def collect_and_insert_transactions(target_volume, target_date_str, station_code
 
             while collected_volume < target_volume and abs(offset) <= max_lookback:
                 # Expand the search window
-                date_range_start = start_date - timedelta(days=offset)
-                date_range_end = end_date + timedelta(days=offset)
+                # date_range_start = start_dt - timedelta(days=offset)
+                # date_range_end = end_dt + timedelta(days=offset)
+                print(f"{start_dt.strftime('%Y-%m-%d %H:%M:%S')} - {end_dt.strftime('%Y-%m-%d %H:%M:%S')} offset: {time_filter}")
 
+               # Final query
                 rows = HistoricalData.objects.filter(
                     station_code=station_code,
                     product=product,
-                    date__range=(date_range_start, date_range_end),
-                    #start_date__time__gte=start_time,
-                    #end_date__time__lte=end_time
-                ).order_by('start_date')
-                
+                    start_date__range=(start_dt, end_dt)
+                ).filter(time_filter).order_by('start_date')
                 
 
                 #print(f"Rows found between {date_range_start} and {date_range_end}: {len(rows)}")
@@ -86,7 +90,7 @@ def collect_and_insert_transactions(target_volume, target_date_str, station_code
                         station_name=row.station_name,
                         start_date=row.start_date,
                         end_date=row.end_date,
-                        date=start_date,
+                        date=start_dt,
                         hour=row.hour,
                         pump_id=row.pump_id,
                         hose_id=row.hose_id,
@@ -121,7 +125,7 @@ def collect_and_insert_transactions(target_volume, target_date_str, station_code
 
 
     # call third step to fix excess insertions
-        fix_excess_insert(meterReading, target_volume,start_date,end_date,product)
+        fix_excess_insert(meterReading, target_volume,start_dt,end_dt,product)
 
 
 
@@ -204,23 +208,43 @@ def getShiftTimeForStationsBy(shiftNo,shiftCount):
 
 
 
-def get_shift_datetime_range(target_date_str, shift_no, shift_count):
-    historical_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
-    shift_times = getShiftTimeForStationsBy(shift_no, shift_count)
+from datetime import datetime, timedelta
 
+def get_shift_datetime_range(backDate, shift_no, shift_count):
+    """
+    Returns the full datetime range for a given shift on a specific date.
+    Handles both same-day and overnight shifts (e.g., 23:00 to 07:00).
+
+    Args:
+        target_date_str (str): Date string in 'YYYY-MM-DD' format.
+        shift_no (int): Shift number.
+        shift_count (int): Total number of shifts.
+
+    Returns:
+        (datetime, datetime): start_datetime, end_datetime of the shift.
+    """
+    historical_date = datetime.strptime(backDate, '%Y-%m-%d').date()
+    
+    # Fetch start and end times for the shift
+    shift_times = getShiftTimeForStationsBy(shift_no, shift_count)
+    if not shift_times or len(shift_times) != 2:
+        raise ValueError("Shift times must contain exactly two time strings: [start_time, end_time]")
+
+    # Parse time strings to time objects
     start_time = datetime.strptime(shift_times[0], '%H:%M:%S').time()
     end_time = datetime.strptime(shift_times[1], '%H:%M:%S').time()
 
     # Combine date and time into datetime
     start_datetime = datetime.combine(historical_date, start_time)
 
-    # If end time is less than start time, it's on the next day
+    # If end time is less than or equal to start, it means the shift crosses to the next day
     if end_time <= start_time:
         end_datetime = datetime.combine(historical_date + timedelta(days=1), end_time)
     else:
         end_datetime = datetime.combine(historical_date, end_time)
 
     return start_datetime, end_datetime
+
 
 def updateStoreByLastReceiptNumber(storeID, lastReceiptNumber):
     """
