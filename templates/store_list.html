@@ -1,0 +1,9 @@
+<!-- store_list.html -->
+<h2>Store List</h2>
+<ul>
+  {% for store in stores %}
+    <li>{{ store.store_name }} - {{ store.store_address }}</li>
+  {% empty %}
+    <li>No stores available.</li>
+  {% endfor %}
+</ul>

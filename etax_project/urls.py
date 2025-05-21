@@ -21,4 +21,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('erp.urls')),  # This includes URLs from your ERP app
     path('', include('receipts.urls')), 
+    path('accounts/', include('accounts.urls')),  # 👈 Add this line
 ]

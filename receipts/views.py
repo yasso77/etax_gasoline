@@ -1,11 +1,22 @@
 from django.http import JsonResponse
 from django.shortcuts import render
+
+from receipts.models import Store
 from .generateTrans import collect_and_insert_transactions
 from erp.getMeterReading import collectInfoMeterReadingShift
+from django.contrib.auth.decorators import login_required
 
 
 
+@login_required
+def store_list_view(request):
+    user = request.user
+    if user.is_superuser:
+        stores = Store.objects.all()
+    else:
+        stores = Store.objects.filter(id=user.userprofile.store.id)
 
+    return render(request, 'store_list.html', {'stores': stores})
 
 def collect_transactions_view(request):
     # Example parameters (these can be passed via GET or POST in a real request)

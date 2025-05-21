@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'receipts',
     'erp',
+    'accounts',
    
 
 ]
@@ -80,6 +81,10 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'etax_project.wsgi.application'
 DATABASE_ROUTERS = ['etax_project.db_routers.ERPDBRouter']
+
+LOGIN_URL = '/accounts/login/'
+LOGIN_REDIRECT_URL = '/'  # or wherever you want to redirect after login
+LOGOUT_REDIRECT_URL = '/accounts/login/'
 
 
 # Database

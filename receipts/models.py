@@ -1,6 +1,6 @@
 import datetime
 from django.db import models
-
+from django.contrib.auth.models import User
 # Create your models here.
 
 class Receipt(models.Model):
@@ -31,6 +31,26 @@ class Store(models.Model):
         
     def __str__(self):
             return self.store_name
+        
+class StationDailyClosedPeriods(models.Model):
+    """
+    Model to represent a store.
+    """
+    incrID = models.AutoField(primary_key=True)
+    store = models.ForeignKey(
+    'Store',  # or use the full app label like 'yourapp.Store'
+    to_field='store_id',  # assuming store_id is the primary key
+    on_delete=models.CASCADE
+)
+    start_date = models.DateTimeField()
+    end_date = models.DateTimeField()
+    created_date = models.DateTimeField(default=datetime.datetime.now)
+    
+    def __str__(self):
+            return f"{self.store_id} - {self.start_date} to {self.end_date}"
+    
+        
+    
             
 class GasolineProducts(models.Model):
     """
@@ -113,4 +133,16 @@ class TransactionLog(models.Model):
         dateTimeRunOn = models.DateTimeField(auto_now_add=True)   
         def __str__(self):
                 return self.store_name
+            
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    store = models.ForeignKey(Store, on_delete=models.CASCADE, null=True, blank=True)
+
+    class Meta:
+        unique_together = ('user', 'store')  # This will enforce the combination to be unique
+
+    def __str__(self):
+        return f"{self.user.username} - {self.store.store_name if self.store else 'No Store Assigned'}"
+
        
